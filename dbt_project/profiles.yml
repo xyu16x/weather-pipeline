@@ -1,0 +1,7 @@
+weather:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('WEATHER_DB', '../data/weather.duckdb') }}"
+      threads: 1

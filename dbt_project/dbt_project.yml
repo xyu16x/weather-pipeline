@@ -1,0 +1,15 @@
+name: weather
+version: "0.1.0"
+config-version: 2
+profile: weather
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+
+models:
+  weather:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: mart_daily_weather
+    description: 地点×日の気象サマリ
+    columns:
+      - name: location_id
+        tests: [not_null]
+      - name: observed_date
+        tests: [not_null]

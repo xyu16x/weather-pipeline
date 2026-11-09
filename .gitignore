@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.venv/
+__pycache__/
+data/
+*.duckdb
+dbt_project/target/
+dbt_project/logs/
+.pytest_cache/
