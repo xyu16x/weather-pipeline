@@ -11,6 +11,11 @@ from pathlib import Path
 
 import duckdb
 
+
+class EmptyTableError(RuntimeError):
+    """raw.weather_hourly が空で、差分の起点が決められない。"""
+
+
 DDL = """
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE TABLE IF NOT EXISTS raw.weather_hourly (
@@ -61,7 +66,7 @@ def load_files(con: duckdb.DuckDBPyConnection, files: list[Path]) -> int:
     return total
 
 
-def decide_range(con, today: date, days: int) -> tuple[date, date] | None:
+def decide_range(con, today: date) -> tuple[date, date] | None:
     """取得期間 (start, end) を返す。取るものがなければ None。"""
     con.execute(DDL)  # 初回でテーブルがなくても落ちないように
 
@@ -77,9 +82,10 @@ def decide_range(con, today: date, days: int) -> tuple[date, date] | None:
     """).fetchone()[0]
 
     if last is None:  # DBが空 = 初回
-        start = end - timedelta(days=days - 1)
-    else:  # 続きから
-        start = last + timedelta(days=1)
+        raise EmptyTableError(
+            "DBが空です。初回は --start と --end で期間を指定してください"
+        )
+    start = last + timedelta(days=1)  # 続きから
 
     if start > end:  # もう最新まで取れている
         return None
@@ -92,25 +98,39 @@ def main() -> None:
     from .fetch import fetch_all
 
     p = argparse.ArgumentParser(description="Open-Meteo -> DuckDB")
-    p.add_argument(
-        "--days",
-        type=int,
-        default=7,
-        help="初回に何日分さかのぼるか (アーカイブは数日遅延あり)",
-    )
     p.add_argument("--raw-dir", type=Path, default=Path("data/raw"))
     p.add_argument("--db", type=Path, default=Path("data/weather.duckdb"))
     p.add_argument(
         "--skip-fetch", action="store_true", help="既存の raw JSON だけロード"
     )
-    p.add_argument("--start", type=Path, default=Path("data/raw"))
+    p.add_argument(
+        "--start",
+        type=date.fromisoformat,
+        help="取得開始日 (YYYY-MM-DD)。--end と一緒に指定する",
+    )
+    p.add_argument(
+        "--end",
+        type=date.fromisoformat,
+        help="取得終了日 (YYYY-MM-DD)",
+    )
     args = p.parse_args()
 
     args.db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(args.db))
 
     if not args.skip_fetch:
-        rng = decide_range(con, date.today(), args.days)
+        if args.start is not None and args.end is not None:
+            if args.start >= args.end:
+                p.error("--start は --end 以前の日付にしてください")
+            rng = (args.start, args.end)
+        elif args.start is not None or args.end is not None:
+            p.error("--start と --end は両方指定してください")
+        else:
+            try:
+                rng = decide_range(con, date.today())
+            except EmptyTableError:
+                p.error("初回は --start と --end で期間を指定してください")
+
         if rng is None:
             print("already up to date")
         else:
