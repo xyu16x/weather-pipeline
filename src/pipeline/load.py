@@ -2,6 +2,7 @@
 
 主キー (location, observed_at) で INSERT OR REPLACE するので、何度実行しても結果は同じ(冪等)。
 """
+
 from __future__ import annotations
 
 import json
@@ -60,22 +61,65 @@ def load_files(con: duckdb.DuckDBPyConnection, files: list[Path]) -> int:
     return total
 
 
+def decide_range(con, today: date, days: int) -> tuple[date, date] | None:
+    """取得期間 (start, end) を返す。取るものがなければ None。"""
+    con.execute(DDL)  # 初回でテーブルがなくても落ちないように
+
+    end = today - timedelta(days=5)  # 確定値が出るまでの遅延を見込む
+
+    # 地点ごとの最新日付のうち、一番古いもの
+    last = con.execute("""
+        select min(max_d) from (
+            select max(cast(observed_at as date)) as max_d
+            from raw.weather_hourly
+            group by location
+        )
+    """).fetchone()[0]
+
+    if last is None:  # DBが空 = 初回
+        start = end - timedelta(days=days - 1)
+    else:  # 続きから
+        start = last + timedelta(days=1)
+
+    if start > end:  # もう最新まで取れている
+        return None
+    return start, end
+
+
 def main() -> None:
     import argparse
 
     from .fetch import fetch_all
 
     p = argparse.ArgumentParser(description="Open-Meteo -> DuckDB")
-    p.add_argument("--days", type=int, default=7, help="何日分さかのぼるか (アーカイブは数日遅延あり)")
+    p.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="初回に何日分さかのぼるか (アーカイブは数日遅延あり)",
+    )
     p.add_argument("--raw-dir", type=Path, default=Path("data/raw"))
     p.add_argument("--db", type=Path, default=Path("data/weather.duckdb"))
-    p.add_argument("--skip-fetch", action="store_true", help="既存の raw JSON だけロード")
+    p.add_argument(
+        "--skip-fetch", action="store_true", help="既存の raw JSON だけロード"
+    )
+    p.add_argument("--start", type=Path, default=Path("data/raw"))
     args = p.parse_args()
 
+    args.db.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(str(args.db))
+
     if not args.skip_fetch:
-        end = date.today() - timedelta(days=5)  # 確定値が出るまでの遅延を見込む
-        start = end - timedelta(days=args.days - 1)
-        fetch_all(start, end, args.raw_dir)
+        rng = decide_range(con, date.today(), args.days)
+        if rng is None:
+            print("already up to date")
+        else:
+            start, end = rng
+            print(f"fetching {start} .. {end}")
+            fetch_all(start, end, args.raw_dir)
+
+    n = load_files(con, sorted(args.raw_dir.glob("*.json")))
+    print(f"loaded {n} rows into {args.db}")
 
     args.db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(args.db))
