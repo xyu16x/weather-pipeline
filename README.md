@@ -1,5 +1,7 @@
 # weather-pipeline
 
+![CI](https://github.com/xyu16x/weather-pipeline/actions/workflows/ci.yml/badge.svg)
+
 Open-Meteo の時間別気象データを取得し、DuckDB に載せて dbt で日次マートまで作る小さなデータパイプライン。
 データエンジニアリングの基本(取得 → 生データ保存 → ロード → 変換 → テスト)を一通り手を動かして学ぶための個人プロジェクトです。
 
@@ -66,7 +68,8 @@ cd .. && PYTHONPATH=src pytest
 - [x] 手元で実 API に対して初回実行する
 - [x] 取得期間の差分化(前回ロード済みの日付以降のみ取得)
 - [x] ロード対象を今回取得したファイルのみにする(現状は data/raw/ を全件ロードしている)
-- [ ] 日次実行(cron / GitHub Actions)
+- [x] CI(GitHub Actions で pytest / dbt test を自動実行)
+- [ ] 日次実行(BigQuery 移行後、状態をクラウドに置いてから)
 - [ ] マートを使った可視化 or 簡単な分析クエリ
 
 ## データ出典・利用条件
