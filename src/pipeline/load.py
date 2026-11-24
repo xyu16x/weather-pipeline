@@ -16,6 +16,10 @@ class EmptyTableError(RuntimeError):
     """raw.weather_hourly が空で、差分の起点が決められない。"""
 
 
+class InvalidRangeError(ValueError):
+    """--start / --end の指定が不正。"""
+
+
 DDL = """
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE TABLE IF NOT EXISTS raw.weather_hourly (
@@ -92,6 +96,25 @@ def decide_range(con, today: date) -> tuple[date, date] | None:
     return start, end
 
 
+def resolve_range(
+    con, today: date, start: date | None, end: date | None
+) -> tuple[date, date] | None:
+    """取得期間を決める。
+    - 両方指定 → (start, end)。start > end なら InvalidRangeError
+    - 片方だけ → InvalidRangeError
+    - どちらもなし → decide_range(con, today) の結果（DBが空なら EmptyTableError）
+    """
+
+    if start is not None and end is not None:
+        if start > end:
+            raise InvalidRangeError("--start は --end 以前の日付にしてください")
+        return (start, end)
+    if start is not None or end is not None:
+        raise InvalidRangeError("--start と --end は両方指定してください")
+
+    return decide_range(con, today)
+
+
 def main() -> None:
     import argparse
 
@@ -121,17 +144,10 @@ def main() -> None:
     if args.skip_fetch:
         files = sorted(args.raw_dir.glob("*.json"))
     else:
-        if args.start is not None and args.end is not None:
-            if args.start >= args.end:
-                p.error("--start は --end 以前の日付にしてください")
-            rng = (args.start, args.end)
-        elif args.start is not None or args.end is not None:
-            p.error("--start と --end は両方指定してください")
-        else:
-            try:
-                rng = decide_range(con, date.today())
-            except EmptyTableError:
-                p.error("初回は --start と --end で期間を指定してください")
+        try:
+            rng = resolve_range(con, date.today(), args.start, args.end)
+        except (InvalidRangeError, EmptyTableError) as e:
+            p.error(str(e))
 
         if rng is None:
             print("already up to date")

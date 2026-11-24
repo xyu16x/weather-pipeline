@@ -8,6 +8,7 @@ from pipeline import load
 from datetime import date
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_response.json"
+ANY_TODAY = date(2026, 10, 10)
 
 
 def test_parse_rows():
@@ -78,3 +79,44 @@ def test_decide_range_single_day():
     start, end = load.decide_range(con, today)
     assert start == date(2026, 10, 3)
     assert end == date(2026, 10, 3)
+
+
+def test_resolve_range_single_day():
+    con = duckdb.connect(":memory:")
+    day = date(2026, 10, 3)
+
+    start, end = load.resolve_range(con, ANY_TODAY, start=day, end=day)
+    assert start == day
+    assert end == day
+
+
+def test_resolve_range_reversed_raises():
+    con = duckdb.connect(":memory:")
+    start, end = date(2026, 10, 10), date(2026, 10, 5)
+
+    with pytest.raises(load.InvalidRangeError):
+        load.resolve_range(con, ANY_TODAY, start, end)
+
+
+@pytest.mark.parametrize(
+    "start, end",
+    [
+        (date(2026, 10, 5), None),
+        (None, date(2026, 10, 5)),
+    ],
+)
+def test_resolve_range_only_one_side_raises(start, end):
+    con = duckdb.connect(":memory:")
+
+    with pytest.raises(load.InvalidRangeError):
+        load.resolve_range(con, ANY_TODAY, start, end)
+
+
+def test_resolve_range_none_uses_decide_range():
+    con = duckdb.connect(":memory:")
+    today = date(2026, 10, 10)
+    load.load_files(con, [FIXTURE])
+
+    start, end = load.resolve_range(con, today, start=None, end=None)
+    assert start == date(2026, 10, 3)
+    assert end == date(2026, 10, 5)
