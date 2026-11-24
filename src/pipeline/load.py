@@ -118,7 +118,9 @@ def main() -> None:
     args.db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(args.db))
 
-    if not args.skip_fetch:
+    if args.skip_fetch:
+        files = sorted(args.raw_dir.glob("*.json"))
+    else:
         if args.start is not None and args.end is not None:
             if args.start >= args.end:
                 p.error("--start は --end 以前の日付にしてください")
@@ -133,17 +135,13 @@ def main() -> None:
 
         if rng is None:
             print("already up to date")
+            files = []
         else:
             start, end = rng
             print(f"fetching {start} .. {end}")
-            fetch_all(start, end, args.raw_dir)
+            files = fetch_all(start, end, args.raw_dir)
 
-    n = load_files(con, sorted(args.raw_dir.glob("*.json")))
-    print(f"loaded {n} rows into {args.db}")
-
-    args.db.parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(str(args.db))
-    n = load_files(con, sorted(args.raw_dir.glob("*.json")))
+    n = load_files(con, files)
     print(f"loaded {n} rows into {args.db}")
 
 
