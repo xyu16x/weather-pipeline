@@ -8,3 +8,10 @@ models:
         tests: [not_null]
       - name: observed_date
         tests: [not_null]
+  - name: mart_monthly_weather
+    description: 地点×月の気象サマリ
+    columns:
+      - name: location_id
+        tests: [not_null]
+      - name: observed_month
+        tests: [not_null]
