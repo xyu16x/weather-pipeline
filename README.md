@@ -14,7 +14,7 @@ Open-Meteo の時間別気象データを取得し、DuckDB に載せて dbt で
 Open-Meteo Archive API
   └─ fetch.py   取得(リトライ+指数バックオフ)→ data/raw/*.json に生のまま保存
       └─ load.py   取得期間を決定(DB の続きから / 期間指定)→ DuckDB raw.weather_hourly へ INSERT OR REPLACE(冪等)
-          └─ dbt   staging(整形) → marts(地点×日の集計) + seed で地点名の名寄せ + テスト
+          └─ dbt   staging(整形) → marts(地点×日、地点×月の集計) + seed で地点名の名寄せ + テスト
 ```
 
 ## 使い方
@@ -52,8 +52,9 @@ cd .. && PYTHONPATH=src pytest
   DB が空なのに期間指定がなければ `EmptyTableError` で止める。同じオプションで欠損日の穴埋めもできる。
 - **生データ保持**: API レスポンスは加工せず保存。変換は dbt 側で行い、やり直せるようにしている。
 - **名寄せ**: 地点表記ゆれ(tokyo / 東京 など)は seed `location_aliases.csv` で吸収。未登録の地点が来たら `assert_all_locations_aliased` が失敗する。
-- **データ品質テスト**: 気温レンジ、地点×日の一意性、名寄せ漏れ、not null。
+- **データ品質テスト**: 気温レンジ、地点×日・地点×月の一意性、名寄せ漏れ、not null。
 - 欠損値(NULL)はそのまま保持し、`temperature_obs_count` で観測数を見えるようにしている。
+  月次マートでは `day_count` で月内のデータ日数を出し、日付の欠損に気づけるようにしている。
 
 ## 動作確認の状況
 
@@ -63,12 +64,14 @@ cd .. && PYTHONPATH=src pytest
 | fixture データでの dbt seed / run / test | 実行済み・通過 |
 | 実 API からの取得 | 確認済み(WSL 環境で実行) |
 
-## 今後(未着手)
+## 進捗と今後
 
 - [x] 手元で実 API に対して初回実行する
 - [x] 取得期間の差分化(前回ロード済みの日付以降のみ取得)
-- [x] ロード対象を今回取得したファイルのみにする(現状は data/raw/ を全件ロードしている)
+- [x] ロード対象を今回取得したファイルのみにする(以前は data/raw/ を毎回全件ロードしていた)
 - [x] CI(GitHub Actions で pytest / dbt test を自動実行)
+- [x] 地点×月の集計マート(mart_monthly_weather)
+- [ ] BigQuery への移行(パーティション・クラスタリングとスキャン量の比較)
 - [ ] 日次実行(BigQuery 移行後、状態をクラウドに置いてから)
 - [ ] マートを使った可視化 or 簡単な分析クエリ
 
