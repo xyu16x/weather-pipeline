@@ -31,10 +31,10 @@ PYTHONPATH=src python -m pipeline.load
 # 欠損日の穴埋め(バックフィル)
 PYTHONPATH=src python -m pipeline.load --start 2026-11-05 --end 2026-11-05
 
-# 変換とテスト
+# 変換とテスト(seed → モデル → テストを依存順に実行)
 cd dbt_project
 export DBT_PROFILES_DIR=.
-dbt seed && dbt run && dbt test
+dbt build
 
 # Python 側のテスト(ネットワーク不要)
 cd .. && PYTHONPATH=src pytest

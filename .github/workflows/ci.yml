@@ -33,6 +33,4 @@ jobs:
           python -m pipeline.load --skip-fetch
           cd dbt_project
           export DBT_PROFILES_DIR=.
-          dbt seed
-          dbt run
-          dbt test
+          dbt build
