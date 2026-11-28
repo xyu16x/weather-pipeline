@@ -226,3 +226,4 @@ dbt_project/target/
 dbt_project/logs/
 .pytest_cache/
 *:Zone.Identifier
+*.egg-info/

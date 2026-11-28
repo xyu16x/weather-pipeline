@@ -21,15 +21,16 @@ Open-Meteo Archive API
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 
 # 初回: 期間を指定して取得 + ロード
-PYTHONPATH=src python -m pipeline.load --start 2026-11-01 --end 2026-11-15
+python -m pipeline.load --start 2026-11-01 --end 2026-11-15
 
 # 2回目以降: DB の続きから自動で取得(確定値が出るまで約5日遅らせる)
-PYTHONPATH=src python -m pipeline.load
+python -m pipeline.load
 
 # 欠損日の穴埋め(バックフィル)
-PYTHONPATH=src python -m pipeline.load --start 2026-11-05 --end 2026-11-05
+python -m pipeline.load --start 2026-11-05 --end 2026-11-05
 
 # 変換とテスト(seed → モデル → テストを依存順に実行)
 cd dbt_project
