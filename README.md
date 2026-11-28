@@ -36,8 +36,8 @@ cd dbt_project
 export DBT_PROFILES_DIR=.
 dbt build
 
-# Python 側のテスト(ネットワーク不要)
-cd .. && PYTHONPATH=src pytest
+# Python 側のテスト(ネットワーク不要。src は pytest.ini で読み込み済み)
+cd .. && pytest
 ```
 
 ## 設計メモ
@@ -55,13 +55,20 @@ cd .. && PYTHONPATH=src pytest
 - **データ品質テスト**: 気温レンジ、地点×日・地点×月の一意性、名寄せ漏れ、not null。
 - 欠損値(NULL)はそのまま保持し、`temperature_obs_count` で観測数を見えるようにしている。
   月次マートでは `day_count` で月内のデータ日数を出し、日付の欠損に気づけるようにしている。
+- **テストで下流を止める**: `dbt run` → `dbt test` ではなく `dbt build` を使う。
+  上流のテストが失敗すると下流のマートは作り直されない(SKIP)ため、
+  名寄せ漏れなどの不正なデータがマートまで流れない。マートは前回成功時の状態のまま残る
+  (「新しいが誤ったデータ」より「古いが正しいデータ」を優先する)。
+- **名寄せは inner join**: 未登録の地点を `left join` でマートに残す案もあるが、
+  location_id が NULL の行が混ざり利用者が混乱するため採用しない。
+  未登録の地点は `assert_all_locations_aliased` で検知し、`dbt build` で下流を止める。
 
 ## 動作確認の状況
 
 | 項目 | 状況 |
 |---|---|
 | pytest(リトライ・冪等・パース・取得期間の決定) | 実行済み・通過 |
-| fixture データでの dbt seed / run / test | 実行済み・通過 |
+| fixture データでの dbt build(seed / run / test) | 実行済み・通過(CI でも自動実行) |
 | 実 API からの取得 | 確認済み(WSL 環境で実行) |
 
 ## 進捗と今後
